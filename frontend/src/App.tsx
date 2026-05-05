@@ -5,6 +5,9 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { Dashboard } from './pages/Dashboard';
+import { CreateBoard } from './pages/CreateBoard';
+import { BoardDetail } from './pages/BoardDetail';
+import { BoardSettings } from './pages/BoardSettings';
 
 function App() {
   return (
@@ -19,6 +22,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/boards/new"
+            element={
+              <ProtectedRoute>
+                <CreateBoard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/boards/:id"
+            element={
+              <ProtectedRoute>
+                <BoardDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/boards/:id/settings"
+            element={
+              <ProtectedRoute>
+                <BoardSettings />
               </ProtectedRoute>
             }
           />
