@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth';
 import { requireBoardAccess, requireRole, requireMinRole } from '../middleware/permissions';
 import { listBoards, createBoard, getBoard, updateBoard, deleteBoard } from '../controllers/boardController';
 import { inviteMember, updateMemberRole, removeMember } from '../controllers/memberController';
+import { listItems, createItem, getItem, updateItem, deleteItem } from '../controllers/itemController';
 
 const router = Router();
 
@@ -18,5 +19,11 @@ router.delete('/:id', requireBoardAccess, requireRole('OWNER'), deleteBoard);
 router.post('/:id/members', requireBoardAccess, requireMinRole('ADMIN'), inviteMember);
 router.patch('/:id/members/:userId', requireBoardAccess, requireRole('OWNER'), updateMemberRole);
 router.delete('/:id/members/:userId', requireBoardAccess, requireMinRole('ADMIN'), removeMember);
+
+router.get('/:id/items', requireBoardAccess, listItems);
+router.post('/:id/items', requireBoardAccess, requireMinRole('MEMBER'), createItem);
+router.get('/:id/items/:itemId', requireBoardAccess, getItem);
+router.patch('/:id/items/:itemId', requireBoardAccess, requireMinRole('MEMBER'), updateItem);
+router.delete('/:id/items/:itemId', requireBoardAccess, requireMinRole('MEMBER'), deleteItem);
 
 export default router;
