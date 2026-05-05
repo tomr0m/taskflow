@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-black text-white;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .bg-dark-surface {
+    @apply bg-[#1a1a1a];
+  }
+  .border-dark-border {
+    @apply border-[#2a2a2a];
+  }
+  .bg-dark-bg {
+    @apply bg-[#0f0f0f];
+  }
+}
