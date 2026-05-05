@@ -1,10 +1,15 @@
 import { ItemPriority } from '../lib/itemApi';
 
-const styles: Record<ItemPriority, string> = {
+const accentStyle = {
+  background: 'color-mix(in srgb, var(--accent) 15%, transparent)',
+  color: 'var(--accent)',
+  border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+};
+
+const grayscaleStyles: Partial<Record<ItemPriority, string>> = {
   LOW: 'text-gray-600',
   MEDIUM: 'text-gray-400',
   HIGH: 'text-amber-500',
-  URGENT: 'text-red-400',
 };
 
 const labels: Record<ItemPriority, string> = {
@@ -14,6 +19,17 @@ const labels: Record<ItemPriority, string> = {
   URGENT: 'Urgent',
 };
 
-export const PriorityBadge = ({ priority }: { priority: ItemPriority }) => (
-  <span className={`text-xs font-medium ${styles[priority]}`}>{labels[priority]}</span>
-);
+export const PriorityBadge = ({ priority }: { priority: ItemPriority }) => {
+  if (priority === 'URGENT') {
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded" style={accentStyle}>
+        {labels[priority]}
+      </span>
+    );
+  }
+  return (
+    <span className={`text-xs font-medium ${grayscaleStyles[priority]}`}>
+      {labels[priority]}
+    </span>
+  );
+};
