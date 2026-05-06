@@ -1,0 +1,226 @@
+/* ─── Dark-mode overrides for react-big-calendar ─────────────────────── */
+
+.rbc-calendar {
+  background: #000;
+  color: #e5e7eb;
+  font-family: inherit;
+}
+
+/* ── Toolbar ─────────────────────────────────── */
+.rbc-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rbc-toolbar button {
+  color: #9ca3af;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.rbc-toolbar button:hover {
+  color: #fff;
+  background: #272727;
+  border-color: #3a3a3a;
+}
+
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover {
+  color: #fff;
+  background: #2a2a2a;
+  border-color: #4a4a4a;
+  box-shadow: none;
+}
+
+.rbc-toolbar-label {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+/* ── Month header row (Mon/Tue/…) ─────────────── */
+.rbc-header {
+  border-bottom: 1px solid #2a2a2a;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 0;
+}
+
+.rbc-header + .rbc-header {
+  border-left: 1px solid #2a2a2a;
+}
+
+/* ── Month/Time view borders ──────────────────── */
+.rbc-month-view,
+.rbc-time-view {
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rbc-month-row {
+  border-top: 1px solid #2a2a2a;
+}
+
+.rbc-month-row + .rbc-month-row {
+  border-top: 1px solid #2a2a2a;
+}
+
+/* ── Day cells ────────────────────────────────── */
+.rbc-day-bg {
+  background: #0f0f0f;
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid #1e1e1e;
+}
+
+.rbc-off-range-bg {
+  background: #080808;
+}
+
+.rbc-off-range .rbc-date-cell a,
+.rbc-off-range .rbc-date-cell {
+  color: #2a2a2a !important;
+}
+
+.rbc-date-cell {
+  color: #6b7280;
+  padding: 4px 8px;
+  text-align: right;
+  font-size: 12px;
+}
+
+.rbc-date-cell a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Today highlight */
+.rbc-today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent) !important;
+}
+
+.rbc-today .rbc-date-cell,
+.rbc-today .rbc-date-cell a {
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+/* ── Events ───────────────────────────────────── */
+.rbc-event {
+  padding: 1px 5px;
+  font-size: 11px;
+  border-radius: 3px;
+  border: none !important;
+  outline: none;
+  line-height: 1.4;
+}
+
+.rbc-event:focus {
+  outline: none;
+}
+
+.rbc-event.rbc-selected {
+  filter: brightness(1.3);
+}
+
+.rbc-event-label {
+  display: none;
+}
+
+.rbc-show-more {
+  color: #6b7280;
+  font-size: 11px;
+  background: transparent;
+  font-weight: 500;
+}
+
+.rbc-show-more:hover {
+  color: #9ca3af;
+}
+
+/* ── Time view specifics ──────────────────────── */
+.rbc-time-header {
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.rbc-time-header-content {
+  border-left: 1px solid #2a2a2a;
+}
+
+.rbc-time-content {
+  border-top: 1px solid #2a2a2a;
+}
+
+.rbc-time-content > * + * > * {
+  border-left: 1px solid #2a2a2a;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid #1a1a1a;
+  min-height: 40px;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid #141414;
+}
+
+.rbc-label {
+  color: #374151;
+  font-size: 10px;
+  padding: 0 6px;
+}
+
+.rbc-current-time-indicator {
+  background-color: var(--accent);
+  opacity: 0.8;
+  height: 2px;
+}
+
+/* ── Slot selection ───────────────────────────── */
+.rbc-slot-selection,
+.rbc-slot-selecting {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* ── Drag & drop ──────────────────────────────── */
+.rbc-addons-dnd .rbc-addons-dnd-over {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.rbc-addons-dnd-drag-preview {
+  opacity: 0.75;
+}
+
+/* ── All-day row in time views ───────────────── */
+.rbc-allday-cell {
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.rbc-row-bg .rbc-day-slot.rbc-today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+/* ── Overlay popup (click "X more") ─────────── */
+.rbc-overlay {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.rbc-overlay-header {
+  border-bottom: 1px solid #2a2a2a;
+  color: #9ca3af;
+  font-size: 11px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}

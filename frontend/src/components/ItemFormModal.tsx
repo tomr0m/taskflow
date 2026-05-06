@@ -31,6 +31,7 @@ interface ItemFormModalProps {
   item?: Item;
   myRole: Role;
   currentUserId: number;
+  defaultStartDate?: string;
   onClose: () => void;
   onSaved: (item: Item) => void;
   onDeleted?: (itemId: number) => void;
@@ -53,6 +54,7 @@ export const ItemFormModal = ({
   item,
   myRole,
   currentUserId,
+  defaultStartDate,
   onClose,
   onSaved,
   onDeleted,
@@ -71,7 +73,7 @@ export const ItemFormModal = ({
   const [description, setDescription] = useState(item?.description || '');
   const [status, setStatus] = useState<ItemStatus>(item?.status || 'TODO');
   const [priority, setPriority] = useState<ItemPriority>(item?.priority || 'MEDIUM');
-  const [startDate, setStartDate] = useState(toDateInput(item?.startDate));
+  const [startDate, setStartDate] = useState(toDateInput(item?.startDate) || (!item ? (defaultStartDate ?? '') : ''));
   const [endDate, setEndDate] = useState(toDateInput(item?.endDate));
   const [assigneeId, setAssigneeId] = useState<string>(
     item?.assigneeId ? String(item.assigneeId) : ''
@@ -87,12 +89,12 @@ export const ItemFormModal = ({
     setDescription(item?.description || '');
     setStatus(item?.status || 'TODO');
     setPriority(item?.priority || 'MEDIUM');
-    setStartDate(toDateInput(item?.startDate));
+    setStartDate(toDateInput(item?.startDate) || (!item ? (defaultStartDate ?? '') : ''));
     setEndDate(toDateInput(item?.endDate));
     setAssigneeId(item?.assigneeId ? String(item.assigneeId) : '');
     setError('');
     setDeleteConfirm(false);
-  }, [item, open]);
+  }, [item, open, defaultStartDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

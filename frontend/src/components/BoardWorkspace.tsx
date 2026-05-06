@@ -10,9 +10,10 @@ import { FiltersBar } from './FiltersBar';
 import { ItemFormModal } from './ItemFormModal';
 import { MembersList } from './MembersList';
 import { InviteMemberDialog } from './InviteMemberDialog';
+import { CalendarView } from './board/CalendarView';
 import { Button } from './Button';
 
-type Tab = 'list' | 'members';
+type Tab = 'list' | 'calendar' | 'members';
 
 interface BoardWorkspaceProps {
   initialBoard: Board;
@@ -22,12 +23,20 @@ interface BoardWorkspaceProps {
 export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProps) => {
   const navigate = useNavigate();
   const [board, setBoard] = useState<Board>(initialBoard);
+
+  // List view — filtered items (server-side via URL params)
   const [items, setItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(true);
+
+  // Calendar view — all items (no filter), fetched once on first calendar open
+  const [calendarItems, setCalendarItems] = useState<Item[]>([]);
+  const [calendarFetched, setCalendarFetched] = useState(false);
+
   const [activeTab, setActiveTab] = useState<Tab>('list');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | undefined>(undefined);
+  const [calendarDefaultDate, setCalendarDefaultDate] = useState<string | undefined>();
   const [searchParams] = useSearchParams();
 
   const boardId = board.id;
@@ -35,6 +44,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const canManageMembers = myRole === 'OWNER' || myRole === 'ADMIN';
   const canCreateItems = myRole !== 'VIEWER';
 
+  // ── List items (with filters) ──────────────────────────────────────────────
   const fetchItems = useCallback(async () => {
     setItemsLoading(true);
     try {
@@ -45,21 +55,32 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
       if (type) params.type = type;
       if (status) params.status = status;
       if (assigneeId) params.assigneeId = parseInt(assigneeId);
-
       const fetched = await itemApi.list(boardId, params as any);
       setItems(fetched);
     } catch {
-      // silently fail, items list just stays empty
+      // silently fail
     } finally {
       setItemsLoading(false);
     }
   }, [boardId, searchParams]);
 
+  // ── Calendar items (all, no filter) ───────────────────────────────────────
+  const fetchCalendarItems = useCallback(async () => {
+    try {
+      const fetched = await itemApi.list(boardId);
+      setCalendarItems(fetched);
+      setCalendarFetched(true);
+    } catch {
+      // silently fail
+    }
+  }, [boardId]);
+
   useEffect(() => {
     if (activeTab === 'list') fetchItems();
-  }, [activeTab, fetchItems]);
+    if (activeTab === 'calendar' && !calendarFetched) fetchCalendarItems();
+  }, [activeTab, fetchItems, fetchCalendarItems, calendarFetched]);
 
-  // Member management
+  // ── Member management ──────────────────────────────────────────────────────
   const handleInvite = async (email: string, role: Exclude<Role, 'OWNER'>) => {
     const member = await boardApi.inviteMember(boardId, { email, role });
     setBoard((prev) => ({
@@ -86,17 +107,26 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
     }));
   };
 
-  // Item management
-  const handleCreateItem = async (bid: number, data: CreateItemData) => {
-    return itemApi.create(bid, data);
-  };
+  // ── Item management (shared between list + calendar) ──────────────────────
+  const handleCreateItem = async (bid: number, data: CreateItemData) =>
+    itemApi.create(bid, data);
 
-  const handleUpdateItem = async (bid: number, itemId: number, data: UpdateItemData) => {
-    return itemApi.update(bid, itemId, data);
-  };
+  const handleUpdateItem = async (bid: number, itemId: number, data: UpdateItemData) =>
+    itemApi.update(bid, itemId, data);
 
   const handleItemSaved = (saved: Item) => {
+    // Update list view
     setItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === saved.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = saved;
+        return next;
+      }
+      return [saved, ...prev];
+    });
+    // Update calendar view
+    setCalendarItems((prev) => {
       const idx = prev.findIndex((i) => i.id === saved.id);
       if (idx >= 0) {
         const next = [...prev];
@@ -110,21 +140,48 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const handleItemDeleted = async (itemId: number) => {
     await itemApi.delete(boardId, itemId);
     setItems((prev) => prev.filter((i) => i.id !== itemId));
+    setCalendarItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
+  // Update from calendar drag (no API call — CalendarView handles that)
+  const handleCalendarItemUpdated = (updated: Item) => {
+    setCalendarItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  };
+
+  // ── Modal helpers ──────────────────────────────────────────────────────────
   const openCreate = () => {
     setEditingItem(undefined);
+    setCalendarDefaultDate(undefined);
     setItemModalOpen(true);
   };
 
   const openEdit = (item: Item) => {
     setEditingItem(item);
+    setCalendarDefaultDate(undefined);
     setItemModalOpen(true);
   };
 
-  // Member avatars preview (header)
+  const openCreateWithDate = (date: string) => {
+    setEditingItem(undefined);
+    setCalendarDefaultDate(date);
+    setItemModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setItemModalOpen(false);
+    setCalendarDefaultDate(undefined);
+  };
+
+  // ── Header member avatars ──────────────────────────────────────────────────
   const visibleMembers = (board.members || []).slice(0, 5);
   const extraCount = Math.max(0, (board.members?.length || 0) - 5);
+
+  const TAB_LABELS: Record<Tab, string> = {
+    list: 'List',
+    calendar: 'Calendar',
+    members: `Members (${board.memberCount})`,
+  };
 
   return (
     <motion.div
@@ -154,7 +211,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
             </div>
 
             <div className="flex items-center gap-3 shrink-0 mt-1">
-              {/* Member avatars */}
               <div className="flex -space-x-2">
                 {visibleMembers.map((m) => (
                   <div
@@ -171,7 +227,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
                   </div>
                 )}
               </div>
-
               {myRole === 'OWNER' && (
                 <Button
                   onClick={() => navigate(`/boards/${boardId}/settings`)}
@@ -186,26 +241,19 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
 
           {/* Tabs */}
           <div className="flex gap-1">
-            {(['list', 'members'] as Tab[]).map((tab) => (
+            {(['list', 'calendar', 'members'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm rounded-t transition-colors capitalize ${
+                className={`px-4 py-2 text-sm rounded-t transition-colors ${
                   activeTab === tab
                     ? 'text-white border-b-2 border-white'
                     : 'text-gray-600 hover:text-gray-400'
                 }`}
               >
-                {tab === 'list' ? 'List' : `Members (${board.memberCount})`}
+                {TAB_LABELS[tab]}
               </button>
             ))}
-            <button
-              disabled
-              className="px-4 py-2 text-sm text-gray-800 cursor-not-allowed"
-              title="Coming in Phase 4"
-            >
-              Calendar
-            </button>
             <button
               disabled
               className="px-4 py-2 text-sm text-gray-800 cursor-not-allowed"
@@ -234,6 +282,32 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
             ) : (
               <ListView items={items} onItemClick={openEdit} />
             )}
+          </div>
+        )}
+
+        {activeTab === 'calendar' && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-gray-600 text-xs">
+                Items without a start date don't appear on the calendar.
+              </p>
+              {canCreateItems && (
+                <Button onClick={openCreate} className="w-auto px-4 shrink-0 ml-3">
+                  + New Item
+                </Button>
+              )}
+            </div>
+            <CalendarView
+              boardId={boardId}
+              items={calendarItems}
+              members={board.members || []}
+              myRole={myRole}
+              currentUserId={currentUser.id}
+              canCreateItems={canCreateItems}
+              onItemUpdated={handleCalendarItemUpdated}
+              onCreateWithDate={openCreateWithDate}
+              onEditItem={openEdit}
+            />
           </div>
         )}
 
@@ -268,7 +342,8 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
         item={editingItem}
         myRole={myRole}
         currentUserId={currentUser.id}
-        onClose={() => setItemModalOpen(false)}
+        defaultStartDate={calendarDefaultDate}
+        onClose={closeModal}
         onSaved={handleItemSaved}
         onDeleted={editingItem ? handleItemDeleted : undefined}
         onCreateItem={handleCreateItem}
