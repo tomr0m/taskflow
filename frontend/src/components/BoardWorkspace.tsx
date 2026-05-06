@@ -11,9 +11,10 @@ import { ItemFormModal } from './ItemFormModal';
 import { MembersList } from './MembersList';
 import { InviteMemberDialog } from './InviteMemberDialog';
 import { CalendarView } from './board/CalendarView';
+import { TimelineView } from './board/TimelineView';
 import { Button } from './Button';
 
-type Tab = 'list' | 'calendar' | 'members';
+type Tab = 'list' | 'calendar' | 'members' | 'timeline';
 
 interface BoardWorkspaceProps {
   initialBoard: Board;
@@ -77,7 +78,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
 
   useEffect(() => {
     if (activeTab === 'list') fetchItems();
-    if (activeTab === 'calendar' && !calendarFetched) fetchCalendarItems();
+    if ((activeTab === 'calendar' || activeTab === 'timeline') && !calendarFetched) fetchCalendarItems();
   }, [activeTab, fetchItems, fetchCalendarItems, calendarFetched]);
 
   // ── Member management ──────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const TAB_LABELS: Record<Tab, string> = {
     list: 'List',
     calendar: 'Calendar',
+    timeline: 'Timeline',
     members: `Members (${board.memberCount})`,
   };
 
@@ -241,7 +243,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
 
           {/* Tabs */}
           <div className="flex gap-1">
-            {(['list', 'calendar', 'members'] as Tab[]).map((tab) => (
+            {(['list', 'calendar', 'timeline', 'members'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -254,13 +256,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
                 {TAB_LABELS[tab]}
               </button>
             ))}
-            <button
-              disabled
-              className="px-4 py-2 text-sm text-gray-800 cursor-not-allowed"
-              title="Coming in Phase 5"
-            >
-              Timeline
-            </button>
           </div>
         </div>
       </div>
@@ -309,6 +304,19 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
               onEditItem={openEdit}
             />
           </div>
+        )}
+
+        {activeTab === 'timeline' && (
+          <TimelineView
+            boardId={boardId}
+            items={calendarItems}
+            members={board.members || []}
+            myRole={myRole}
+            currentUserId={currentUser.id}
+            canCreateItems={canCreateItems}
+            onItemUpdated={handleCalendarItemUpdated}
+            onEditItem={openEdit}
+          />
         )}
 
         {activeTab === 'members' && (
