@@ -1,8 +1,10 @@
 import { Response } from 'express';
 import { BoardRequest } from '../middleware/permissions';
 import { prisma } from '../lib/db';
+import { getIo } from '../lib/socket';
 import { InviteMemberSchema, UpdateMemberRoleSchema } from '../schemas/board';
 import { Role } from '@prisma/client';
+import { ZodError } from 'zod';
 
 export const inviteMember = async (req: BoardRequest, res: Response): Promise<void> => {
   try {
@@ -10,7 +12,6 @@ export const inviteMember = async (req: BoardRequest, res: Response): Promise<vo
     const boardId = parseInt(req.params.id);
     const callerRole = req.boardMember!.role;
 
-    // ADMINs can only invite MEMBER/VIEWER
     if (callerRole === 'ADMIN' && body.role === 'ADMIN') {
       res.status(403).json({ error: { message: 'ADMINs can only invite MEMBER or VIEWER', code: 'FORBIDDEN' } });
       return;
@@ -35,17 +36,21 @@ export const inviteMember = async (req: BoardRequest, res: Response): Promise<vo
       include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
     });
 
-    res.status(201).json({
-      member: {
-        id: member.id,
-        userId: member.userId,
-        role: member.role,
-        createdAt: member.createdAt,
-        user: member.user,
-      },
+    const memberPayload = {
+      id: member.id,
+      userId: member.userId,
+      role: member.role,
+      createdAt: member.createdAt,
+      user: member.user,
+    };
+
+    getIo().to(`board:${boardId}`).emit('member:joined', {
+      member: memberPayload as unknown as Record<string, unknown>,
     });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
+
+    res.status(201).json({ member: memberPayload });
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
       res.status(400).json({ error: { message: error.errors[0].message, code: 'VALIDATION_ERROR' } });
       return;
     }
@@ -79,6 +84,11 @@ export const updateMemberRole = async (req: BoardRequest, res: Response): Promis
       include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
     });
 
+    getIo().to(`board:${boardId}`).emit('member:role_changed', {
+      userId: targetUserId,
+      newRole: updated.role,
+    });
+
     res.json({
       member: {
         id: updated.id,
@@ -88,8 +98,8 @@ export const updateMemberRole = async (req: BoardRequest, res: Response): Promis
         user: updated.user,
       },
     });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
       res.status(400).json({ error: { message: error.errors[0].message, code: 'VALIDATION_ERROR' } });
       return;
     }
@@ -118,7 +128,6 @@ export const removeMember = async (req: BoardRequest, res: Response): Promise<vo
       return;
     }
 
-    // ADMIN can only remove MEMBER/VIEWER (not other ADMINs)
     if (callerRole === 'ADMIN' && target.role === 'ADMIN' && callerId !== targetUserId) {
       res.status(403).json({ error: { message: 'ADMINs cannot remove other ADMINs', code: 'FORBIDDEN' } });
       return;
@@ -127,6 +136,8 @@ export const removeMember = async (req: BoardRequest, res: Response): Promise<vo
     await prisma.boardMember.delete({
       where: { boardId_userId: { boardId, userId: targetUserId } },
     });
+
+    getIo().to(`board:${boardId}`).emit('member:removed', { userId: targetUserId });
 
     res.json({ message: 'Member removed' });
   } catch {

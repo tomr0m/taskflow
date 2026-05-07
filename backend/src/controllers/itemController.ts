@@ -1,8 +1,10 @@
 import { Response } from 'express';
 import { BoardRequest } from '../middleware/permissions';
 import { prisma } from '../lib/db';
+import { getIo } from '../lib/socket';
 import { CreateItemSchema, UpdateItemSchema } from '../schemas/item';
 import { ItemType, ItemStatus } from '@prisma/client';
+import { ZodError } from 'zod';
 
 const itemInclude = {
   assignee: { select: { id: true, email: true, name: true, avatarUrl: true } },
@@ -14,7 +16,7 @@ export const listItems = async (req: BoardRequest, res: Response): Promise<void>
     const boardId = req.boardMember!.boardId;
     const { type, status, assigneeId } = req.query;
 
-    const where: any = { boardId };
+    const where: Record<string, unknown> = { boardId };
     if (type) where.type = type as ItemType;
     if (status) where.status = status as ItemStatus;
     if (assigneeId) where.assigneeId = parseInt(assigneeId as string);
@@ -63,9 +65,12 @@ export const createItem = async (req: BoardRequest, res: Response): Promise<void
       include: itemInclude,
     });
 
+    // Emit to all board members (including the creator — frontend deduplicates by ID)
+    getIo().to(`board:${boardId}`).emit('item:created', { item: item as unknown as Record<string, unknown> });
+
     res.status(201).json({ item });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
       res.status(400).json({ error: { message: error.errors[0].message, code: 'VALIDATION_ERROR' } });
       return;
     }
@@ -138,9 +143,14 @@ export const updateItem = async (req: BoardRequest, res: Response): Promise<void
       include: itemInclude,
     });
 
+    getIo().to(`board:${boardId}`).emit('item:updated', {
+      item: item as unknown as Record<string, unknown>,
+      actorId: userId,
+    });
+
     res.json({ item });
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
+  } catch (error: unknown) {
+    if (error instanceof ZodError) {
       res.status(400).json({ error: { message: error.errors[0].message, code: 'VALIDATION_ERROR' } });
       return;
     }
@@ -167,6 +177,13 @@ export const deleteItem = async (req: BoardRequest, res: Response): Promise<void
     }
 
     await prisma.item.delete({ where: { id: itemId } });
+
+    getIo().to(`board:${boardId}`).emit('item:deleted', {
+      id: itemId,
+      title: existing.title,
+      actorId: userId,
+    });
+
     res.json({ message: 'Item deleted' });
   } catch {
     res.status(500).json({ error: { message: 'Failed to delete item', code: 'DELETE_ERROR' } });

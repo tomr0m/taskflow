@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,6 +7,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import boardRoutes from './routes/boards';
 import { errorHandler } from './middleware/errorHandler';
+import { initSocket } from './lib/socket';
 
 dotenv.config();
 
@@ -23,8 +25,8 @@ app.use(
 
 // Rate limiting for auth routes
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: 'Too many auth attempts, please try again later',
 });
 
@@ -44,8 +46,11 @@ app.get('/health', (_req, res) => {
 // Error handling
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
+// Attach Socket.io to the same HTTP server as Express
+const httpServer = http.createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`✅ TaskFlow API running on http://localhost:${PORT}`);
   console.log(`📌 Environment: ${process.env.NODE_ENV || 'development'}`);
 });

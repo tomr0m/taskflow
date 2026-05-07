@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiClient } from './apiClient';
+import { connectSocket, disconnectSocket } from './socket';
 
 interface User {
   id: number;
@@ -24,7 +25,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token and user from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('token');
     if (savedToken) {
@@ -42,8 +42,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { Authorization: `Bearer ${authToken}` },
       });
       setUser(response.data.user);
+      connectSocket(authToken);
     } catch {
-      // Token invalid, clear it
       localStorage.removeItem('token');
       setToken(null);
     } finally {
@@ -58,6 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(userData);
     localStorage.setItem('token', newToken);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    connectSocket(newToken);
   };
 
   const signup = async (email: string, password: string, name: string) => {
@@ -67,6 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(userData);
     localStorage.setItem('token', newToken);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    connectSocket(newToken);
   };
 
   const logout = () => {
@@ -74,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     localStorage.removeItem('token');
     delete apiClient.defaults.headers.common['Authorization'];
+    disconnectSocket();
   };
 
   return (
