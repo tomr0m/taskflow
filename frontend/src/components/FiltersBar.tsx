@@ -25,7 +25,7 @@ interface FiltersBarProps {
 }
 
 const selectCls =
-  'bg-dark-bg border border-dark-border text-gray-400 text-sm rounded px-3 py-1.5 focus:outline-none focus:border-gray-500 cursor-pointer';
+  'bg-dark-bg border border-dark-border text-gray-400 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-gray-500 cursor-pointer transition-colors hover:border-gray-600';
 
 export const FiltersBar = ({ members, currentUserId }: FiltersBarProps) => {
   const [params, setParams] = useSearchParams();
@@ -43,23 +43,19 @@ export const FiltersBar = ({ members, currentUserId }: FiltersBarProps) => {
     });
   };
 
-  const hasFilters = type || status || assigneeId;
+  const hasFilters = !!(type || status || assigneeId);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-4">
+    <div className="flex flex-wrap items-center gap-2">
       <select value={type} onChange={(e) => setFilter('type', e.target.value)} className={selectCls}>
         {ALL_TYPES.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
+          <option key={t.value} value={t.value}>{t.label}</option>
         ))}
       </select>
 
       <select value={status} onChange={(e) => setFilter('status', e.target.value)} className={selectCls}>
         {ALL_STATUSES.map((s) => (
-          <option key={s.value} value={s.value}>
-            {s.label}
-          </option>
+          <option key={s.value} value={s.value}>{s.label}</option>
         ))}
       </select>
 
@@ -73,18 +69,16 @@ export const FiltersBar = ({ members, currentUserId }: FiltersBarProps) => {
         {members
           .filter((m) => m.userId !== currentUserId)
           .map((m) => (
-            <option key={m.userId} value={String(m.userId)}>
-              {m.user.name}
-            </option>
+            <option key={m.userId} value={String(m.userId)}>{m.user.name}</option>
           ))}
       </select>
 
       {hasFilters && (
         <button
           onClick={() => setParams({})}
-          className="text-gray-600 hover:text-gray-300 text-sm transition-colors"
+          className="text-gray-600 hover:text-gray-300 text-sm transition-colors px-1"
         >
-          Clear filters
+          ✕ Clear
         </button>
       )}
     </div>

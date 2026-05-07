@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X } from 'lucide-react';
 import { Item, ItemType, ItemStatus, ItemPriority, CreateItemData, UpdateItemData } from '../lib/itemApi';
 import { BoardMember, Role } from '../lib/boardApi';
 import { Input } from './Input';
@@ -10,18 +11,11 @@ const STATUSES: ItemStatus[] = ['TODO', 'IN_PROGRESS', 'DONE', 'CANCELLED'];
 const PRIORITIES: ItemPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 const TYPE_LABELS: Record<ItemType, string> = {
-  TASK: 'Task',
-  MEETING: 'Meeting',
-  REMINDER: 'Reminder',
-  DEADLINE: 'Deadline',
-  EVENT: 'Event',
+  TASK: 'Task', MEETING: 'Meeting', REMINDER: 'Reminder', DEADLINE: 'Deadline', EVENT: 'Event',
 };
 
 const STATUS_LABELS: Record<ItemStatus, string> = {
-  TODO: 'To Do',
-  IN_PROGRESS: 'In Progress',
-  DONE: 'Done',
-  CANCELLED: 'Cancelled',
+  TODO: 'To Do', IN_PROGRESS: 'In Progress', DONE: 'Done', CANCELLED: 'Cancelled',
 };
 
 interface ItemFormModalProps {
@@ -40,7 +34,7 @@ interface ItemFormModalProps {
 }
 
 const selectCls =
-  'w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-white focus:outline-none focus:border-gray-400';
+  'w-full px-4 py-2 bg-dark-bg border border-dark-border rounded text-white focus:outline-none focus:border-gray-400 transition disabled:opacity-50';
 
 function toDateInput(iso?: string | null) {
   if (!iso) return '';
@@ -63,17 +57,16 @@ export const ItemFormModal = ({
 }: ItemFormModalProps) => {
   const isEdit = !!item;
   const canEdit =
-    !isEdit ||
-    myRole === 'OWNER' ||
-    myRole === 'ADMIN' ||
-    item.createdById === currentUserId;
+    !isEdit || myRole === 'OWNER' || myRole === 'ADMIN' || item.createdById === currentUserId;
 
   const [type, setType] = useState<ItemType>(item?.type || 'TASK');
   const [title, setTitle] = useState(item?.title || '');
   const [description, setDescription] = useState(item?.description || '');
   const [status, setStatus] = useState<ItemStatus>(item?.status || 'TODO');
   const [priority, setPriority] = useState<ItemPriority>(item?.priority || 'MEDIUM');
-  const [startDate, setStartDate] = useState(toDateInput(item?.startDate) || (!item ? (defaultStartDate ?? '') : ''));
+  const [startDate, setStartDate] = useState(
+    toDateInput(item?.startDate) || (!item ? (defaultStartDate ?? '') : '')
+  );
   const [endDate, setEndDate] = useState(toDateInput(item?.endDate));
   const [assigneeId, setAssigneeId] = useState<string>(
     item?.assigneeId ? String(item.assigneeId) : ''
@@ -82,7 +75,9 @@ export const ItemFormModal = ({
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  // Reset form when item changes
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  // Reset form when item/open changes
   useEffect(() => {
     setType(item?.type || 'TASK');
     setTitle(item?.title || '');
@@ -96,6 +91,15 @@ export const ItemFormModal = ({
     setDeleteConfirm(false);
   }, [item, open, defaultStartDate]);
 
+  // Auto-focus title + Escape to close
+  useEffect(() => {
+    if (!open) return;
+    setTimeout(() => titleRef.current?.focus(), 60);
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) return;
@@ -103,24 +107,22 @@ export const ItemFormModal = ({
     setLoading(true);
     try {
       const data = {
-        type,
-        title: title.trim(),
+        type, title: title.trim(),
         description: description.trim() || undefined,
-        status,
-        priority,
+        status, priority,
         startDate: startDate || null,
         endDate: endDate || null,
         assigneeId: assigneeId ? parseInt(assigneeId) : null,
       };
-
       const saved = isEdit
         ? await onUpdateItem(boardId, item!.id, data)
         : await onCreateItem(boardId, data);
-
       onSaved(saved);
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to save item');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      setError(msg || 'Failed to save item');
     } finally {
       setLoading(false);
     }
@@ -145,51 +147,61 @@ export const ItemFormModal = ({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-12 sm:pt-16 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70"
+            className="fixed inset-0 bg-black/75"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            initial={{ opacity: 0, scale: 0.96, y: -12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="relative bg-dark-surface border border-dark-border rounded-lg p-6 w-full max-w-lg"
+            className="relative bg-dark-surface border border-dark-border rounded-xl p-6 w-full max-w-lg shadow-2xl"
           >
+            {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-white font-semibold text-lg">
                 {isEdit ? (canEdit ? 'Edit Item' : 'Item Details') : 'New Item'}
               </h2>
-              {canDelete && !deleteConfirm && (
-                <button
-                  onClick={() => setDeleteConfirm(true)}
-                  className="text-gray-600 hover:text-red-400 text-sm transition-colors"
-                >
-                  Delete
-                </button>
-              )}
-              {deleteConfirm && (
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 text-xs">Sure?</span>
-                  <button onClick={handleDelete} className="text-red-400 text-xs hover:text-red-300">
-                    Yes, delete
-                  </button>
+              <div className="flex items-center gap-3">
+                {canDelete && !deleteConfirm && (
                   <button
-                    onClick={() => setDeleteConfirm(false)}
-                    className="text-gray-600 text-xs hover:text-gray-400"
+                    onClick={() => setDeleteConfirm(true)}
+                    className="text-gray-600 hover:text-red-400 text-sm transition-colors"
                   >
-                    Cancel
+                    Delete
                   </button>
-                </div>
-              )}
+                )}
+                {deleteConfirm && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-xs">Sure?</span>
+                    <button onClick={handleDelete} className="text-red-400 text-xs hover:text-red-300">
+                      Yes, delete
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm(false)}
+                      className="text-gray-600 text-xs hover:text-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={onClose}
+                  className="text-gray-600 hover:text-white transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleSubmit}>
-              {/* Type */}
+              {/* Type selector */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-white mb-2">Type</label>
                 <div className="flex flex-wrap gap-2">
@@ -213,6 +225,7 @@ export const ItemFormModal = ({
 
               {/* Title */}
               <Input
+                ref={titleRef}
                 label="Title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -225,7 +238,7 @@ export const ItemFormModal = ({
               {/* Description */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-white mb-2">
-                  Description <span className="text-gray-500">(optional)</span>
+                  Description <span className="text-gray-500 font-normal">(optional)</span>
                 </label>
                 <textarea
                   value={description}
@@ -239,31 +252,26 @@ export const ItemFormModal = ({
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Status</label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as ItemStatus)}
                     disabled={!canEdit}
-                    className={`${selectCls} disabled:opacity-50`}
+                    className={selectCls}
                   >
                     {STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_LABELS[s]}
-                      </option>
+                      <option key={s} value={s}>{STATUS_LABELS[s]}</option>
                     ))}
                   </select>
                 </div>
-
-                {/* Priority */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Priority</label>
                   <select
                     value={priority}
                     onChange={(e) => setPriority(e.target.value as ItemPriority)}
                     disabled={!canEdit}
-                    className={`${selectCls} disabled:opacity-50`}
+                    className={selectCls}
                   >
                     {PRIORITIES.map((p) => (
                       <option key={p} value={p}>
@@ -275,7 +283,6 @@ export const ItemFormModal = ({
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                {/* Start date */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">Start date</label>
                   <input
@@ -283,10 +290,9 @@ export const ItemFormModal = ({
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     disabled={!canEdit}
-                    className={`${selectCls} disabled:opacity-50`}
+                    className={selectCls}
                   />
                 </div>
-                {/* End date */}
                 <div>
                   <label className="block text-sm font-medium text-white mb-2">End date</label>
                   <input
@@ -295,7 +301,7 @@ export const ItemFormModal = ({
                     onChange={(e) => setEndDate(e.target.value)}
                     disabled={!canEdit}
                     min={startDate || undefined}
-                    className={`${selectCls} disabled:opacity-50`}
+                    className={selectCls}
                   />
                 </div>
               </div>
@@ -307,19 +313,18 @@ export const ItemFormModal = ({
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
                   disabled={!canEdit}
-                  className={`${selectCls} disabled:opacity-50`}
+                  className={selectCls}
                 >
                   <option value="">Unassigned</option>
                   {members.map((m) => (
                     <option key={m.userId} value={String(m.userId)}>
-                      {m.user.name}
-                      {m.userId === currentUserId ? ' (me)' : ''}
+                      {m.user.name}{m.userId === currentUserId ? ' (me)' : ''}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
               <div className="flex gap-3">
                 <Button type="button" variant="secondary" onClick={onClose} className="flex-1">

@@ -8,18 +8,19 @@ interface AuthLayoutProps {
 
 export const AuthLayout = ({ children, title, subtitle }: AuthLayoutProps) => {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+    <div className="min-h-screen bg-black flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">{title}</h1>
-          {subtitle && <p className="text-gray-400 text-sm">{subtitle}</p>}
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white text-black font-bold text-lg mb-4">
+            T
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-1">{title}</h1>
+          {subtitle && <p className="text-gray-500 text-sm">{subtitle}</p>}
         </div>
-        <div className="bg-dark-surface border border-dark-border rounded-lg p-8 shadow-lg">
+        <div className="bg-dark-surface border border-dark-border rounded-xl p-8 shadow-2xl">
           {children}
         </div>
-        <div className="text-center mt-6 text-sm text-gray-500">
-          <p>TaskFlow • Phase 1</p>
-        </div>
+        <p className="text-center mt-6 text-xs text-gray-700">TaskFlow — Team Project Management</p>
       </div>
     </div>
   );

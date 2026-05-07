@@ -14,6 +14,7 @@ import { InviteMemberDialog } from './InviteMemberDialog';
 import { CalendarView } from './board/CalendarView';
 import { TimelineView } from './board/TimelineView';
 import { Button } from './Button';
+import { Spinner } from './Spinner';
 
 type Tab = 'list' | 'calendar' | 'timeline' | 'members';
 
@@ -27,24 +28,16 @@ interface RtToast {
   text: string;
 }
 
-// Convert socket ItemPayload → Item (same shape; just assert type)
-function payloadToItem(p: ItemPayload): Item {
-  return p as unknown as Item;
-}
-
-function payloadToMember(p: MemberPayload): BoardMember {
-  return p as unknown as BoardMember;
-}
+function payloadToItem(p: ItemPayload): Item { return p as unknown as Item; }
+function payloadToMember(p: MemberPayload): BoardMember { return p as unknown as BoardMember; }
 
 export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProps) => {
   const navigate = useNavigate();
   const [board, setBoard] = useState<Board>(initialBoard);
 
-  // List view — filtered items (server-side via URL params)
   const [items, setItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(true);
 
-  // Calendar + Timeline — all items (no filter), fetched once on first open
   const [calendarItems, setCalendarItems] = useState<Item[]>([]);
   const [calendarFetched, setCalendarFetched] = useState(false);
 
@@ -54,28 +47,38 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const [editingItem, setEditingItem] = useState<Item | undefined>(undefined);
   const [calendarDefaultDate, setCalendarDefaultDate] = useState<string | undefined>();
 
-  // Real-time toasts
   const [rtToasts, setRtToasts] = useState<RtToast[]>([]);
   const toastIdRef = useRef(0);
-
-  // Presence: userIds currently viewing this board
   const [presenceIds, setPresenceIds] = useState<number[]>([]);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const boardId = board.id;
   const myRole = board.myRole;
   const canManageMembers = myRole === 'OWNER' || myRole === 'ADMIN';
   const canCreateItems = myRole !== 'VIEWER';
 
-  // Keep a ref to board so socket callbacks don't get stale
   const boardRef = useRef(board);
   useEffect(() => { boardRef.current = board; }, [board]);
+
+  // ── Cmd+K: open create modal from anywhere ─────────────────────────────────
+  useEffect(() => {
+    if (!canCreateItems) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openCreate();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canCreateItems]);
 
   // ── Toast helper ───────────────────────────────────────────────────────────
   const showRtToast = useCallback((text: string) => {
     const id = ++toastIdRef.current;
-    setRtToasts((prev) => [...prev.slice(-2), { id, text }]); // keep max 3
+    setRtToasts((prev) => [...prev.slice(-2), { id, text }]);
     setTimeout(() => setRtToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   }, []);
 
@@ -93,7 +96,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
       const fetched = await itemApi.list(boardId, params as never);
       setItems(fetched);
     } catch {
-      // silently fail
+      // silently fail; global interceptor shows toast
     } finally {
       setItemsLoading(false);
     }
@@ -115,84 +118,60 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
     if ((activeTab === 'calendar' || activeTab === 'timeline') && !calendarFetched) fetchCalendarItems();
   }, [activeTab, fetchItems, fetchCalendarItems, calendarFetched]);
 
-  // ── Socket: join board room, handle events, presence ──────────────────────
+  // ── Socket ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-
     socket.emit('board:join', boardId);
 
-    // Track whether we need a full refetch after a reconnect
     let needsRefetch = false;
-
     const onConnect = () => {
       if (!needsRefetch) return;
       needsRefetch = false;
       fetchItems();
       if (calendarFetched) fetchCalendarItems();
     };
+    const onDisconnect = () => { needsRefetch = true; };
 
-    const onDisconnect = () => {
-      needsRefetch = true;
-    };
-
-    // ── item:created ─────────────────────────────────────────────────────────
     const onItemCreated = ({ item: raw }: { item: ItemPayload }) => {
       const item = payloadToItem(raw);
-
-      // Add to list view (dedup by ID)
       setItems((prev) => prev.some((i) => i.id === item.id) ? prev : [item, ...prev]);
-      // Add to calendar/timeline (dedup)
       setCalendarItems((prev) => prev.some((i) => i.id === item.id) ? prev : [item, ...prev]);
-
-      // Toast only for other users' actions
       if (item.createdById !== currentUser.id) {
-        const actor = item.createdBy?.name ?? 'Someone';
-        showRtToast(`${actor} added "${item.title}"`);
+        showRtToast(`${item.createdBy?.name ?? 'Someone'} added "${item.title}"`);
       }
     };
 
-    // ── item:updated ─────────────────────────────────────────────────────────
     const onItemUpdated = ({ item: raw, actorId }: { item: ItemPayload; actorId: number }) => {
       const item = payloadToItem(raw);
-
       setItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
       setCalendarItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
-
       if (actorId !== currentUser.id) {
-        const members = boardRef.current.members ?? [];
-        const actor = members.find((m) => m.userId === actorId)?.user.name ?? 'Someone';
+        const actor = boardRef.current.members?.find((m) => m.userId === actorId)?.user.name ?? 'Someone';
         showRtToast(`${actor} updated "${item.title}"`);
       }
     };
 
-    // ── item:deleted ─────────────────────────────────────────────────────────
     const onItemDeleted = ({ id, title, actorId }: { id: number; title: string; actorId: number }) => {
       setItems((prev) => prev.filter((i) => i.id !== id));
       setCalendarItems((prev) => prev.filter((i) => i.id !== id));
-
       if (actorId !== currentUser.id) {
-        const members = boardRef.current.members ?? [];
-        const actor = members.find((m) => m.userId === actorId)?.user.name ?? 'Someone';
+        const actor = boardRef.current.members?.find((m) => m.userId === actorId)?.user.name ?? 'Someone';
         showRtToast(`${actor} removed "${title}"`);
       }
     };
 
-    // ── member:joined ─────────────────────────────────────────────────────────
     const onMemberJoined = ({ member: raw }: { member: MemberPayload }) => {
       const member = payloadToMember(raw);
       setBoard((prev) => ({
         ...prev,
         members: prev.members?.some((m) => m.userId === member.userId)
-          ? prev.members
-          : [...(prev.members ?? []), member],
+          ? prev.members : [...(prev.members ?? []), member],
         memberCount: prev.members?.some((m) => m.userId === member.userId)
-          ? prev.memberCount
-          : prev.memberCount + 1,
+          ? prev.memberCount : prev.memberCount + 1,
       }));
     };
 
-    // ── member:role_changed ───────────────────────────────────────────────────
     const onMemberRoleChanged = ({ userId, newRole }: { userId: number; newRole: string }) => {
       setBoard((prev) => ({
         ...prev,
@@ -202,7 +181,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
       }));
     };
 
-    // ── member:removed ────────────────────────────────────────────────────────
     const onMemberRemoved = ({ userId }: { userId: number }) => {
       setBoard((prev) => ({
         ...prev,
@@ -211,10 +189,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
       }));
     };
 
-    // ── presence:update ───────────────────────────────────────────────────────
-    const onPresenceUpdate = ({ userIds }: { userIds: number[] }) => {
-      setPresenceIds(userIds);
-    };
+    const onPresenceUpdate = ({ userIds }: { userIds: number[] }) => setPresenceIds(userIds);
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -268,9 +243,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   };
 
   // ── Item management ────────────────────────────────────────────────────────
-  const handleCreateItem = async (bid: number, data: CreateItemData) =>
-    itemApi.create(bid, data);
-
+  const handleCreateItem = async (bid: number, data: CreateItemData) => itemApi.create(bid, data);
   const handleUpdateItem = async (bid: number, itemId: number, data: UpdateItemData) =>
     itemApi.update(bid, itemId, data);
 
@@ -304,7 +277,11 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const openCreateWithDate = (date: string) => { setEditingItem(undefined); setCalendarDefaultDate(date); setItemModalOpen(true); };
   const closeModal = () => { setItemModalOpen(false); setCalendarDefaultDate(undefined); };
 
-  // ── Presence avatars ───────────────────────────────────────────────────────
+  // ── Filters state (for empty state message) ────────────────────────────────
+  const hasFilters = !!(searchParams.get('type') || searchParams.get('status') || searchParams.get('assigneeId'));
+  const clearFilters = () => setSearchParams({});
+
+  // ── Presence ───────────────────────────────────────────────────────────────
   const allMembers = board.members ?? [];
   const presenceMembers = presenceIds
     .map((uid) => allMembers.find((m) => m.userId === uid))
@@ -312,7 +289,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
   const visiblePresence = presenceMembers.slice(0, 3);
   const extraPresence = Math.max(0, presenceMembers.length - 3);
 
-  // Header member avatars (existing)
   const visibleMembers = allMembers.slice(0, 5);
   const extraCount = Math.max(0, allMembers.length - 5);
 
@@ -325,35 +301,36 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
       className="min-h-screen bg-black text-white"
     >
       {/* Header */}
       <div className="border-b border-dark-border">
         <div className="max-w-5xl mx-auto px-4 py-5">
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <div className="min-w-0">
               <button
                 onClick={() => navigate('/dashboard')}
                 className="text-gray-600 hover:text-gray-400 text-xs mb-2 transition-colors block"
               >
                 ← All Boards
               </button>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">{board.name}</h1>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold truncate">{board.name}</h1>
                 <RoleBadge role={myRole} />
               </div>
               {board.description && (
-                <p className="text-gray-500 text-sm mt-1">{board.description}</p>
+                <p className="text-gray-500 text-sm mt-1 truncate">{board.description}</p>
               )}
             </div>
 
-            <div className="flex items-center gap-3 shrink-0 mt-1">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 mt-1">
               {/* Presence avatars */}
               {visiblePresence.length > 0 && (
-                <div className="flex -space-x-1.5 items-center" title="Currently viewing">
+                <div className="flex -space-x-1.5" title="Currently viewing">
                   {visiblePresence.map((m) => (
                     <div
                       key={m.userId}
@@ -361,7 +338,6 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
                       className="relative w-6 h-6 rounded-full bg-gray-700 border border-black flex items-center justify-center text-xs text-white"
                     >
                       {m.user.name[0].toUpperCase()}
-                      {/* Green live dot */}
                       <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-black" />
                     </div>
                   ))}
@@ -373,8 +349,8 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
                 </div>
               )}
 
-              {/* Member count avatars */}
-              <div className="flex -space-x-2">
+              {/* Member avatars */}
+              <div className="hidden sm:flex -space-x-2">
                 {visibleMembers.map((m) => (
                   <div
                     key={m.userId}
@@ -403,13 +379,13 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1">
+          {/* Tabs — horizontally scrollable on mobile */}
+          <div className="flex gap-1 overflow-x-auto scrollbar-none -mx-1 px-1 pb-px">
             {(['list', 'calendar', 'timeline', 'members'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm rounded-t transition-colors ${
+                className={`px-4 py-2 text-sm rounded-t transition-colors whitespace-nowrap shrink-0 ${
                   activeTab === tab
                     ? 'text-white border-b-2 border-white'
                     : 'text-gray-600 hover:text-gray-400'
@@ -426,30 +402,41 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
       <div className="max-w-5xl mx-auto px-4 py-6">
         {activeTab === 'list' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
               <FiltersBar members={board.members || []} currentUserId={currentUser.id} />
               {canCreateItems && (
-                <Button onClick={openCreate} className="w-auto px-4 shrink-0 ml-3">
+                <Button
+                  onClick={openCreate}
+                  className="w-auto px-4 shrink-0"
+                  title="New item (⌘K)"
+                >
                   + New Item
                 </Button>
               )}
             </div>
             {itemsLoading ? (
-              <p className="text-gray-600 text-sm">Loading items...</p>
+              <div className="flex justify-center py-16">
+                <Spinner size={20} className="text-gray-600" />
+              </div>
             ) : (
-              <ListView items={items} onItemClick={openEdit} />
+              <ListView
+                items={items}
+                onItemClick={openEdit}
+                hasFilters={hasFilters}
+                onClearFilters={clearFilters}
+              />
             )}
           </div>
         )}
 
         {activeTab === 'calendar' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
               <p className="text-gray-600 text-xs">
                 Items without a start date don't appear on the calendar.
               </p>
               {canCreateItems && (
-                <Button onClick={openCreate} className="w-auto px-4 shrink-0 ml-3">
+                <Button onClick={openCreate} className="w-auto px-4 shrink-0">
                   + New Item
                 </Button>
               )}
@@ -527,8 +514,8 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
         myRole={myRole}
       />
 
-      {/* Real-time toasts */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+      {/* Real-time toasts (bottom-right, slide in from right) */}
+      <div className="fixed bottom-20 right-6 z-50 flex flex-col gap-2 pointer-events-none">
         <AnimatePresence>
           {rtToasts.map((t) => (
             <motion.div
@@ -537,7 +524,7 @@ export const BoardWorkspace = ({ initialBoard, currentUser }: BoardWorkspaceProp
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 40 }}
               transition={{ duration: 0.2 }}
-              className="bg-dark-surface border border-dark-border text-white text-sm px-4 py-2.5 rounded-lg shadow-xl max-w-xs"
+              className="bg-dark-surface border border-dark-border text-white text-sm px-4 py-2.5 rounded-xl shadow-xl max-w-xs"
             >
               {t.text}
             </motion.div>
