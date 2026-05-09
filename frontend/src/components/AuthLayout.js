@@ -1,0 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export const AuthLayout = ({ children, title, subtitle }) => {
+    return (_jsx("div", { className: "min-h-screen bg-black flex items-center justify-center px-4 py-8", children: _jsxs("div", { className: "w-full max-w-md", children: [_jsxs("div", { className: "text-center mb-8", children: [_jsx("div", { className: "inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white text-black font-bold text-lg mb-4", children: "T" }), _jsx("h1", { className: "text-2xl font-bold text-white mb-1", children: title }), subtitle && _jsx("p", { className: "text-gray-500 text-sm", children: subtitle })] }), _jsx("div", { className: "bg-dark-surface border border-dark-border rounded-xl p-8 shadow-2xl", children: children }), _jsx("p", { className: "text-center mt-6 text-xs text-gray-700", children: "TaskFlow \u2014 Team Project Management" })] }) }));
+};
