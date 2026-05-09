@@ -14,11 +14,36 @@ dotenv.config();
 const app = express();
 const PORT = process.env.API_PORT || 3001;
 
+// Build CORS allowed origins list
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+];
+
+// Add production frontend URL if defined
+if (FRONTEND_URL && FRONTEND_URL !== '*') {
+  allowedOrigins.push(FRONTEND_URL);
+}
+
 // Security middleware
 app.use(helmet());
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      
+      // If FRONTEND_URL is "*", allow all
+      if (FRONTEND_URL === '*') return callback(null, true);
+      
+      // Check if origin is in allowed list
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
@@ -53,4 +78,5 @@ initSocket(httpServer);
 httpServer.listen(PORT, () => {
   console.log(`✅ TaskFlow API running on http://localhost:${PORT}`);
   console.log(`📌 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Allowed origins: ${allowedOrigins.join(', ')}`);
 });
