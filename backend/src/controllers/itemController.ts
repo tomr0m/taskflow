@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { BoardRequest } from '../middleware/permissions';
-import { prisma } from '../lib/db';
-import { getIo } from '../lib/socket';
-import { CreateItemSchema, UpdateItemSchema } from '../schemas/item';
+import { BoardRequest } from '../middleware/permissions.js';
+import { prisma } from '../lib/db.js';
+import { getIo } from '../lib/socket.js';
+import { CreateItemSchema, UpdateItemSchema } from '../schemas/item.js';
 import { ItemType, ItemStatus } from '@prisma/client';
 import { ZodError } from 'zod';
 

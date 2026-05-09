@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
-import { AuthRequest } from './auth';
-import { prisma } from '../lib/db';
+import { AuthRequest } from './auth.js';
+import { prisma } from '../lib/db.js';
 import { Role } from '@prisma/client';
 
 export interface BoardRequest extends AuthRequest {

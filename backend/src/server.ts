@@ -4,10 +4,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import authRoutes from './routes/auth';
-import boardRoutes from './routes/boards';
-import { errorHandler } from './middleware/errorHandler';
-import { initSocket } from './lib/socket';
+import authRoutes from './routes/auth.js';
+import boardRoutes from './routes/boards.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { initSocket } from './lib/socket.js';
 
 dotenv.config();
 

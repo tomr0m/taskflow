@@ -1,9 +1,9 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
-import { SignupSchema, LoginSchema } from '../schemas/auth';
-import { prisma } from '../lib/db';
-import { hashPassword, comparePassword } from '../lib/password';
-import { generateToken } from '../lib/jwt';
+import { AuthRequest } from '../middleware/auth.js';
+import { SignupSchema, LoginSchema } from '../schemas/auth.js';
+import { prisma } from '../lib/db.js';
+import { hashPassword, comparePassword } from '../lib/password.js';
+import { generateToken } from '../lib/jwt.js';
 
 export const signup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

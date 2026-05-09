@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { BoardRequest } from '../middleware/permissions';
-import { prisma } from '../lib/db';
-import { getIo } from '../lib/socket';
-import { InviteMemberSchema, UpdateMemberRoleSchema } from '../schemas/board';
+import { BoardRequest } from '../middleware/permissions.js';
+import { prisma } from '../lib/db.js';
+import { getIo } from '../lib/socket.js';
+import { InviteMemberSchema, UpdateMemberRoleSchema } from '../schemas/board.js';
 import { Role } from '@prisma/client';
 import { ZodError } from 'zod';
 

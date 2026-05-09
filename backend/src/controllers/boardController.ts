@@ -1,8 +1,8 @@
 import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth';
-import { BoardRequest } from '../middleware/permissions';
-import { prisma } from '../lib/db';
-import { CreateBoardSchema, UpdateBoardSchema } from '../schemas/board';
+import { AuthRequest } from '../middleware/auth.js';
+import { BoardRequest } from '../middleware/permissions.js';
+import { prisma } from '../lib/db.js';
+import { CreateBoardSchema, UpdateBoardSchema } from '../schemas/board.js';
 
 export const listBoards = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

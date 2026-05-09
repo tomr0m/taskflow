@@ -1,7 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
-import { verifyToken } from './jwt';
-import { prisma } from './db';
+import { verifyToken } from './jwt.js';
+import { prisma } from './db.js';
 
 // ── Typed event interfaces ────────────────────────────────────────────────────
 
